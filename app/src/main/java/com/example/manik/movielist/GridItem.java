@@ -12,6 +12,7 @@ public class GridItem {
     public boolean adult;
     public String release_date;
     public String language;
+    public Long id;
     public GridItem(){
         super();
     }

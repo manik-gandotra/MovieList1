@@ -6,6 +6,6 @@
 <item android:title="Settings"
     android:id="@+id/settings"
     android:orderInCategory="100"
-    android:showAsAction="never"/>
+    app:showAsAction="never"/>
 
 </menu>

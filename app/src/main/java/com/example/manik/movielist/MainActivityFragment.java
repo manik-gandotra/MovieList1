@@ -1,9 +1,11 @@
 package com.example.manik.movielist;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -37,6 +39,7 @@ public class MainActivityFragment extends Fragment {
     private ProgressBar proBar;
     private com.example.manik.movielist.GridViewAdapter adapter;
     private ArrayList<GridItem> data= new ArrayList<GridItem>();
+    private String mOrder;
     public MainActivityFragment() {
     }
 
@@ -45,6 +48,7 @@ public class MainActivityFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState){
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+        mOrder=getPrefferedOrder();
     }
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater){
@@ -58,26 +62,45 @@ public class MainActivityFragment extends Fragment {
         int id = item.getItemId();
 
         if(id==R.id.refresh){
-            FetchList fetch=new FetchList();
-            fetch.execute();
+            updateList();
             return true;
         }
 
         return super.onOptionsItemSelected(item);
     }
-
+    @Override
+    public void onResume(){
+        super.onResume();
+        String newOrder=getPrefferedOrder();
+        if(newOrder!=null&& !mOrder.equals(newOrder)){
+            onOrderChanged();
+            mOrder=newOrder;
+        }
+    }
+    public String getPrefferedOrder(){
+        SharedPreferences preferences=PreferenceManager.getDefaultSharedPreferences(getContext());
+        String order=preferences.getString(getString(R.string.pref_movie_key),getString(R.string.pref_movie_popular));
+        return order;
+    }
+    private void onOrderChanged(){
+        updateList();
+    }
+    public void updateList(){
+        adapter.clear();
+        FetchList fetch=new FetchList();
+        String order=getPrefferedOrder();
+        fetch.execute(order);
+    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View rootView=inflater.inflate(R.layout.fragment_main,container,false);
-
         gridView=(GridView)rootView.findViewById(R.id.gridview);
         proBar=(ProgressBar)rootView.findViewById(R.id.probar);
         data=new ArrayList<>();
         adapter=new GridViewAdapter(getContext(),R.layout.grid_item_layout,data);
         gridView.setAdapter(adapter);
-        FetchList fetch=new FetchList();
-        fetch.execute();
+        updateList();
         proBar.setVisibility(View.VISIBLE);
         gridView.setOnItemClickListener(new AdapterView.OnItemClickListener(){
             @Override
@@ -91,12 +114,14 @@ public class MainActivityFragment extends Fragment {
                 intent.putExtra("DATE",object.release_date);
                 intent.putExtra("LANGUAGE",object.language);
                 intent.putExtra("TITLE",object.title);
+                intent.putExtra("ID",object.id);
+
                 startActivity(intent);
             }
         });
         return rootView;
     }
-    public class FetchList extends AsyncTask<Void,Void,Integer> {
+    public class FetchList extends AsyncTask<String,Void,Integer> {
 
         private final String Log_tag=FetchList.class.getSimpleName();
         private String imageBaseUrl="http://image.tmdb.org/t/p";
@@ -112,6 +137,7 @@ public class MainActivityFragment extends Fragment {
             final String MOV_LANG="original_language";
             String size="w185";
             try{
+
                 JSONObject movJson=new JSONObject(jSonStr);
                 JSONArray movArray=movJson.getJSONArray(MOV_LIST);
                 for(int i=0;i<movArray.length();i++){
@@ -137,6 +163,8 @@ public class MainActivityFragment extends Fragment {
                     a.release_date=releaseDate;
                     a.language=language;
                     a.title=title;
+                    a.id=id;
+                    Log.d(Log_tag,a.id.toString());
                     data.add(a);
                 }
             }catch(JSONException e){
@@ -146,47 +174,52 @@ public class MainActivityFragment extends Fragment {
         }
 
         @Override
-        protected Integer doInBackground(Void...params) {
+        protected Integer doInBackground(String...params) {
             HttpURLConnection urlConnection=null;
             BufferedReader reader=null;
+            String ordering=params[0];
             String jsonStr=null;
             String mv="movie";
             String pop="popular";
+            String pg="page";
             final String apik="4c528d76735c55069bc12ba65b08c496";
             try{
-                String BASE_URL="http://api.themoviedb.org/3/";
-                final String API_KEY="api_key";
-                Uri fetchUri=Uri.parse(BASE_URL).buildUpon()
-                        .appendPath(mv)
-                        .appendPath(pop)
-                        .appendQueryParameter(API_KEY,apik)
-                        .build();
-                URL url=new URL(fetchUri.toString());
-                Log.d(Log_tag,url.toString());
-                urlConnection=(HttpURLConnection) url.openConnection();
-                urlConnection.setRequestMethod("GET");
-                urlConnection.addRequestProperty("Accept", "application/json");
-                urlConnection.setDoInput(true);
-                urlConnection.connect();
-                InputStream stream=urlConnection.getInputStream();
-                StringBuffer buffer=new StringBuffer();
-                if(stream==null){
-                    return null;
+                for(Integer i=1;i<=5;i++) {
+                    String BASE_URL = "http://api.themoviedb.org/3/";
+                    final String API_KEY = "api_key";
+                    Uri fetchUri = Uri.parse(BASE_URL).buildUpon()
+                            .appendPath(mv)
+                            .appendPath(ordering)
+                            .appendQueryParameter(API_KEY, apik)
+                            .appendQueryParameter(pg, i.toString())
+                            .build();
+                    URL url = new URL(fetchUri.toString());
+                    Log.d(Log_tag, url.toString());
+                    urlConnection = (HttpURLConnection) url.openConnection();
+                    urlConnection.setRequestMethod("GET");
+                    urlConnection.addRequestProperty("Accept", "application/json");
+                    urlConnection.setDoInput(true);
+                    urlConnection.connect();
+                    InputStream stream = urlConnection.getInputStream();
+                    if (stream == null) {
+                        return null;
+                    }
+                    StringBuffer buffer = new StringBuffer();
+                    reader = new BufferedReader(new InputStreamReader(stream));
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        buffer.append(line + "\n");
+                    }
+                    if (buffer.length() == 0) {
+                        return null; //stream was empty
+                    } else {
+                        jsonStr = buffer.toString();
+                        getDataFromJson(jsonStr);
+                        Log.d(Log_tag, jsonStr);
+                    }
                 }
-                reader=new BufferedReader(new InputStreamReader(stream));
-                String line;
-                while((line=reader.readLine())!=null){
-                    buffer.append(line+"\n");
-                }
-                if(buffer.length()==0){
-                    return null; //stream was empty
-                }
-                else {
-                    jsonStr = buffer.toString();
-                    getDataFromJson(jsonStr);
-                    Log.d(Log_tag,jsonStr);
-                    return 1;
-                }
+                return 1;
+
             }catch (IOException e){
                 Log.d(Log_tag,"Error in IO",e);
             } catch (JSONException e){

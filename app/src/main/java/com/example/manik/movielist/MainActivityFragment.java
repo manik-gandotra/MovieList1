@@ -128,7 +128,7 @@ public class MainActivityFragment extends Fragment {
         private void getDataFromJson(String jSonStr) throws JSONException {
             final String MOV_ID="id";
             final String MOV_LIST="results";
-            final String MOV_TITLE="original_title";
+            final String MOV_TITLE="title";
             final String MOV_POSTER="poster_path";
             final String MOV_AVG_VOTE="vote_average";
             final String MOV_DATE="release_date";

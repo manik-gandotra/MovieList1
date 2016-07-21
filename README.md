@@ -1,6 +1,6 @@
 # MovieList1
 This is an app to display a list of popular movies in GridView by gathering data from the api available at https://www.themoviedb.org/.
-On clicking any movie image the app will direct you to an activity with details about the movie.
+On clicking any movie image the app will direct you to an activity with details about the movie and a link to watch the trailer.
 
 Screenshots:
 
